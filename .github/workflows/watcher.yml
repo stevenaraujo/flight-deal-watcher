@@ -1,0 +1,56 @@
+name: Flight Deal Watcher
+
+on:
+  schedule:
+    # Täglich 06:00 UTC (07:00/08:00 Schweizer Zeit je nach Sommerzeit).
+    # Frequenz bewusst auf 1x/Tag begrenzt, siehe src/config.py (API-Budget-Rechnung:
+    # 4 Kombinationen x 2 Requests = 8 Requests/Tag = 240/Monat, < 250 Free-Tier-Limit).
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}  # manueller Trigger jederzeit möglich
+
+concurrency:
+  group: flight-deal-watcher
+  cancel-in-progress: false  # kein Parallel-Run, aber laufender Run wird nicht abgebrochen
+
+permissions:
+  contents: write  # nötig, um data/flights.db und docs/index.html zurückzucommitten
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Dependencies installieren
+        run: pip install -r requirements.txt
+
+      - name: Flight Watcher ausführen
+        env:
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python main.py
+
+      - name: Ergebnisse zurück ins Repo committen
+        run: |
+          git config user.name "flight-deal-watcher-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/flights.db docs/index.html
+          git diff --staged --quiet || git commit -m "chore: update flight price data [skip ci]"
+          git push

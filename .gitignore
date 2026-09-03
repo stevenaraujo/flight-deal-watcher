@@ -1,0 +1,15 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+
+# Lokale Test-DB (Produktions-DB liegt bewusst in data/flights.db und wird versioniert!)
+*.db-journal
